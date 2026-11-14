@@ -34,7 +34,8 @@ function save() {
 class Output {
   constructor(name) {
     this.name = name;
-    this.ctx = new AudioContext({ latencyHint: 'interactive' });
+    // 'interactive' asks Windows for the smallest buffer and crackles under load; 'balanced' is still snappy
+    this.ctx = new AudioContext({ latencyHint: 'balanced' });
     this.sounds = this.ctx.createGain(); // master x device volume, sounds only
     this.sounds.connect(this.ctx.destination);
     this.an = this.ctx.createAnalyser(); // feeds the VU meters on the Dial Board tab
@@ -103,13 +104,16 @@ const engine = {
 
     for (const o of targets) {
       if (o.ctx.state !== 'running') o.ctx.resume();
+      // schedule slightly ahead so the first samples don't land mid-buffer (start pops)
       const src = o.ctx.createBufferSource();
       src.buffer = buffer;
       if (sound.rate && sound.rate !== 1) src.playbackRate.value = sound.rate;
       const g = o.ctx.createGain();
       g.gain.value = vol;
       src.connect(g).connect(o.sounds);
-      const now = o.ctx.currentTime + 0.005;
+      const now = o.ctx.currentTime + 0.02;
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.004); // tiny fade-in kills the click
       if (sound.loop) {
         src.loop = true; src.loopStart = start; src.loopEnd = end;
         src.start(now, start);
@@ -173,6 +177,8 @@ const engine = {
     mon.enabled = s.monOn; str.enabled = s.strOn;
     await Promise.all([mon.setDevice(s.monDev), str.setDevice(s.strDev)]);
     await engine.setMic();
+    // an idle stream context still runs a second audio thread; park it when unused
+    if (!s.strOn && !s.micOn) str.ctx.suspend(); else str.ctx.resume();
     engine.applyVolumes();
     updateRouting();
   },
