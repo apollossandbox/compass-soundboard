@@ -1,0 +1,1 @@
+<g fill="none" stroke="currentColor" stroke-width="125"><path d="M585 65 C250 65 62 300 62 600 C70 1000 400 1400 800 1600 C950 1670 1050 1700 1160 1730"/><path d="M830 95 C1400 240 2000 800 1940 1250 C1900 1550 1650 1730 1405 1740"/></g><ellipse cx="1105" cy="870" rx="118" ry="82" transform="rotate(40 1105 870)" fill="currentColor"/>

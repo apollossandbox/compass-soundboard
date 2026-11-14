@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:">
+<title>Compass Soundboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="titlebar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 2000 1800" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="125"><path d="M585 65 C250 65 62 300 62 600 C70 1000 400 1400 800 1600 C950 1670 1050 1700 1160 1730"/><path d="M830 95 C1400 240 2000 800 1940 1250 C1900 1550 1650 1730 1405 1740"/></g><ellipse cx="1105" cy="870" rx="118" ry="82" transform="rotate(40 1105 870)" fill="currentColor"/></svg>
+    Compass Soundboard
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="search"><input id="search" type="search" placeholder="Search sounds…" autocomplete="off"></div>
+  <div class="tabs" id="tabs">
+    <button data-tab="all" class="active">All</button>
+    <button data-tab="fav">★ Favorites</button>
+    <button data-tab="dial">Dial Board</button>
+    <button data-tab="drum">Drum Pad</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="master">
+    <span title="Master volume">Vol</span>
+    <input id="master" type="range" min="0" max="100" value="80">
+    <span id="masterVal">80%</span>
+  </div>
+  <button id="pauseBtn" class="btn ghost" title="Pause or resume everything that is playing">Pause</button>
+  <button id="stopAll" class="btn danger" title="Stop every playing sound">■ Stop all</button>
+  <button id="settingsBtn" class="btn ghost" title="Audio devices & options">Audio</button>
+  <button id="addBtn" class="btn primary">Add sounds</button>
+</header>
+
+<main id="grid" class="grid"></main>
+<section id="hw" class="hw hidden"></section>
+<section id="drum" class="hw hidden"></section>
+
+<div id="empty" class="empty hidden">
+  <h2>Your board is empty</h2>
+  <p>Drop audio files anywhere in this window, or click <b>Add sounds</b>.<br>Hover a pad and hit the pencil to trim it, set a hotkey and pick a color.</p>
+  <button class="btn primary" id="emptyAdd">Add sounds</button>
+</div>
+
+<div id="dropHint" class="drop-hint hidden"><div>Drop audio to add it to Compass Soundboard</div></div>
+
+<footer class="statusbar">
+  <span id="status">Ready</span>
+  <button id="updBtn" class="upd" title="Check GitHub for a newer version">Check for updates</button>
+  <span class="spacer"></span>
+  <span>Click restarts a sound · Shift+click stops it</span>
+  <span id="routing" class="route"></span>
+</footer>
+
+<!-- Audio / settings dialog -->
+<dialog id="settings">
+  <form method="dialog" class="dlg">
+    <h2>Audio setup</h2>
+    <p class="hint">Compass Soundboard plays every sound to two places at once: your <b>headphones</b> (so you hear it) and your <b>stream output</b>. To get sounds into OBS / Discord / games, install a free virtual cable (e.g. <b>VB-Cable</b>), set <b>Stream output</b> to “CABLE Input”, then use “CABLE Output” as a mic or audio source.</p>
+
+    <div class="row"><label class="chk"><input type="checkbox" id="monOn"> <b>Headphones / monitor</b></label>
+      <select id="monDev"></select></div>
+    <div class="row"><label class="chk"><input type="checkbox" id="strOn"> <b>Stream output</b></label>
+      <select id="strDev"></select></div>
+    <div class="row sliders">
+      <label>Headphones volume <input id="monVol" type="range" min="0" max="100"></label>
+      <label>Stream volume <input id="strVol" type="range" min="0" max="100"></label>
+    </div>
+
+    <hr>
+    <div class="row"><label class="chk"><input type="checkbox" id="micOn"> <b>Mix my microphone into the stream output</b></label>
+      <select id="micDev"></select></div>
+    <p class="hint">Like Voicemod: your mic and the sounds go out together on one device. Your mic is <u>never</u> sent to your headphones (no echo).</p>
+    <div class="row sliders"><label>Mic volume <input id="micVol" type="range" min="0" max="150"></label></div>
+
+    <hr>
+    <div class="row"><label class="chk"><input type="checkbox" id="stopKeyOn"> <b>Panic hotkey: stop all sounds</b></label>
+      <input id="stopKey" class="hotkey" readonly placeholder="Click, then press keys"></div>
+
+    <div class="actions">
+      <button type="button" class="btn ghost" id="openFolder">Open sounds folder</button>
+      <span class="spacer"></span>
+      <button class="btn primary" value="close">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Sound editor -->
+<dialog id="editor">
+  <form method="dialog" class="dlg wide" id="editorForm">
+    <div class="ed-head">
+      <input id="edName" class="name" maxlength="40" placeholder="Sound name">
+      <button type="button" class="btn ghost" id="edFav" title="Favorite">☆</button>
+    </div>
+
+    <div class="wave-wrap">
+      <canvas id="wave" height="170"></canvas>
+      <div id="playhead"></div>
+      <div id="waveMsg" class="wave-msg"></div>
+    </div>
+    <div class="trim-row">
+      <label>Start <input id="edStart" type="number" min="0" step="0.01"> s</label>
+      <label>End <input id="edEnd" type="number" min="0" step="0.01"> s</label>
+      <span class="len">Length <b id="edLen">0.00</b> s of <span id="edTotal">0.00</span> s</span>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="edReset">Reset trim</button>
+      <button type="button" class="btn" id="edPlay">▶ Preview</button>
+    </div>
+    <p class="hint small">Drag the red edges to trim, or drag across the wave to select a new part. Your original file is never changed.</p>
+
+    <div class="ed-grid">
+      <label>Volume <input id="edVol" type="range" min="0" max="200"><span id="edVolVal">100%</span></label>
+      <label>Hotkey <span class="hk-wrap"><input id="edKey" class="hotkey" readonly placeholder="Click, then press keys"><button type="button" class="btn ghost sm" id="edKeyClear">✕</button></span></label>
+      <label>Fade out <input id="edFade" type="range" min="0" max="200"><span id="edFadeVal">0 ms</span></label>
+      <label class="chk"><input type="checkbox" id="edLoop"> Loop until stopped</label>
+      <label>Pad label <input id="edEmoji" class="emoji" maxlength="4" placeholder="A"></label>
+      <div class="swatches" id="edColors"></div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn danger ghost" id="edDelete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="edCancel">Cancel</button>
+      <button type="button" class="btn primary" id="edSave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="ctx" class="ctx hidden" role="menu"></div>
+
+<dialog id="bindDlg">
+  <div class="dlg bind">
+    <h2 id="bindTitle">Rebind key</h2>
+    <div class="bindkey" id="bindKey">Press the new key…</div>
+    <p class="hint">Any key, or a combo like Ctrl + Alt + 7. Works even when Compass Soundboard is in the background. <b>Backspace</b> clears the key, <b>Esc</b> cancels.</p>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+<script src="hardware.js"></script>
+</body>
+</html>

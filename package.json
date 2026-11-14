@@ -1,0 +1,63 @@
+{
+  "name": "compass-soundboard",
+  "productName": "Compass Soundboard",
+  "version": "1.0.0",
+  "description": "Compass Soundboard - a stream soundboard with built-in sound trimming",
+  "main": "src/main.js",
+  "author": "Compass",
+  "scripts": {
+    "start": "electron .",
+    "icon": "electron build/render-icon.js",
+    "dist": "electron build/render-icon.js && electron-builder --win --publish never"
+  },
+  "build": {
+    "appId": "com.compass.soundboard",
+    "productName": "Compass Soundboard",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "portable": {
+      "artifactName": "CompassSoundboard-portable.exe"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "apollossandbox",
+        "repo": "compass-soundboard"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}
