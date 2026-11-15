@@ -286,3 +286,6 @@ code { background: var(--panel3); padding: 0 5px; border-radius: 5px; font-size:
 .btn.hot { background: var(--ink); color: var(--onink); }
 
 .preset { display: flex; gap: 6px; align-items: center; } .preset select { max-width: 190px; padding: 7px 14px; font-weight: 700; }
+
+/* every finger/pointer hits its own pad; no browser gestures stealing touches */
+.dpad { touch-action: none; }

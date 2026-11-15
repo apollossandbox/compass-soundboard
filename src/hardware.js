@@ -261,6 +261,7 @@ window.hardware = (() => {
       if (!kit.buffers[i]) p.classList.add('off');
       p.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        try { p.setPointerCapture(e.pointerId); } catch {}
         const r = p.getBoundingClientRect();
         hit(i, 0.55 + 0.45 * Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)));
       });
