@@ -3,7 +3,6 @@
 
 const $ = (s) => document.querySelector(s);
 const COLORS = ['#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#22d3ee', '#3b82f6', '#a3a3a3'];
-const EMOJIS = ['🔊', '😂', '🎺', '💥', '👏', '🥁', '🐔', '🚨', '😱', '🎉', '🔥', '💀'];
 const MIN_SEL = 0.02;
 
 const DEFAULTS = {
@@ -90,7 +89,7 @@ const engine = {
   play(sound, buffer, opts = {}) {
     const s = state.settings;
     const targets = opts.monitorOnly ? [mon] : outputs.filter((o) => o.enabled && !(o === str && mon.enabled && (state.settings.strDev || 'default') === (state.settings.monDev || 'default')));
-    if (!targets.length) { setStatus('Both outputs are off. Open ⚙ Audio to turn one on.'); return null; }
+    if (!targets.length) { setStatus('Both outputs are off. Open Audio to turn one on.'); return null; }
     if (pauser.paused) unpauseSync();
     // sounds never overlap: starting one cuts whatever else is playing (drum hits are the one exception)
     if (!opts.preview && !opts.layer) for (const v of [...voices.values()]) if (!v.preview && !String(v.soundId).startsWith('drum')) engine.stopVoice(v);
@@ -503,8 +502,6 @@ const editor = (() => {
   $('#edFade').addEventListener('input', (e) => { draft.fade = +e.target.value; $('#edFadeVal').textContent = draft.fade + ' ms'; });
   $('#edLoop').addEventListener('change', (e) => { draft.loop = e.target.checked; });
   $('#edName').addEventListener('input', (e) => { draft.name = e.target.value; });
-  $('#edEmoji').addEventListener('input', (e) => { draft.emoji = e.target.value; });
-  $('#edFav').addEventListener('click', () => { draft.fav = !draft.fav; $('#edFav').textContent = draft.fav ? '★' : '☆'; });
   captureHotkey($('#edKey'), () => draft?.hotkey || '', (v) => { draft.hotkey = v; });
   $('#edKeyClear').addEventListener('click', () => { draft.hotkey = ''; $('#edKey').value = ''; });
   $('#editorForm').addEventListener('submit', (e) => e.preventDefault());
@@ -561,8 +558,6 @@ const editor = (() => {
       $('#edVol').value = draft.volume; $('#edVolVal').textContent = draft.volume + '%';
       $('#edFade').value = draft.fade || 0; $('#edFadeVal').textContent = (draft.fade || 0) + ' ms';
       $('#edLoop').checked = !!draft.loop;
-      $('#edEmoji').value = draft.emoji || '';
-      $('#edFav').textContent = draft.fav ? '★' : '☆';
       $('#edKey').value = (draft.hotkey || '').replace('num', 'Num');
       $('#edTotal').textContent = fmt(buf.duration);
       markColor();
