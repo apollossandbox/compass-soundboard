@@ -331,3 +331,34 @@ ipcMain.handle('update:check', async () => {
 ipcMain.handle('update:download', async () => { try { await getUpdater().downloadUpdate(); } catch {} });
 ipcMain.handle('update:install', () => getUpdater().quitAndInstall());
 ipcMain.handle('update:openReleases', () => shell.openExternal(RELEASES_URL));
+
+// ---------- presets: one .compasspreset file = names, keys, trims + the audio itself ----------
+ipcMain.handle('preset:export', async (_e, preset) => {
+  const res = await dialog.showSaveDialog(win, { title: 'Export preset', defaultPath: preset.name.replace(/[\\/:*?"<>|]/g, '') + '.compasspreset', filters: [{ name: 'Compass preset', extensions: ['compasspreset'] }] });
+  if (res.canceled) return false;
+  const files = {};
+  for (const s of preset.sounds) {
+    if (!files[s.file]) { try { files[s.file] = fs.readFileSync(path.join(soundsDir(), path.basename(s.file))).toString('base64'); } catch {} }
+  }
+  fs.writeFileSync(res.filePath, JSON.stringify({ format: 'compass-preset', version: 1, name: preset.name, sounds: preset.sounds, files }));
+  return true;
+});
+ipcMain.handle('preset:import', async () => {
+  const res = await dialog.showOpenDialog(win, { title: 'Import preset', properties: ['openFile'], filters: [{ name: 'Compass preset', extensions: ['compasspreset', 'json'] }] });
+  if (res.canceled) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8'));
+    if (data.format !== 'compass-preset') throw new Error('not a preset');
+    const map = {};
+    for (const [old, b64] of Object.entries(data.files || {})) {
+      const nf = crypto.randomUUID() + path.extname(old);
+      fs.writeFileSync(path.join(soundsDir(), nf), Buffer.from(b64, 'base64'));
+      map[old] = nf;
+    }
+    const sounds = (data.sounds || []).filter((s) => map[s.file]).map((s) => ({ ...s, id: crypto.randomUUID(), file: map[s.file] }));
+    return { id: crypto.randomUUID(), name: data.name || 'Imported', sounds };
+  } catch (e) {
+    dialog.showErrorBox('Import failed', 'That file is not a Compass preset.');
+    return null;
+  }
+});

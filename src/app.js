@@ -14,7 +14,7 @@ const DEFAULTS = {
   dialNum: true, dialPad: true,
 };
 
-const state = { sounds: [], settings: { ...DEFAULTS }, tab: 'all', query: '', failedKeys: new Set() };
+const state = { presets: [], active: null, sounds: [], settings: { ...DEFAULTS }, tab: 'all', query: '', failedKeys: new Set() };
 const buffers = new Map(); // sound id -> AudioBuffer
 const padEls = new Map(); // sound id -> pad element
 
@@ -26,7 +26,8 @@ function uid() { return crypto.randomUUID(); }
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => dris.saveLibrary({ sounds: state.sounds, settings: state.settings }), 250);
+  const p = activePreset(); if (p) p.sounds = state.sounds;
+  saveTimer = setTimeout(() => dris.saveLibrary({ presets: state.presets, active: state.active, settings: state.settings }), 250);
 }
 
 /* =========================== audio engine =========================== */
@@ -536,7 +537,7 @@ const editor = (() => {
     stopPreview(); engine.stopSound(s.id);
     state.sounds = state.sounds.filter((x) => x.id !== s.id);
     buffers.delete(s.id);
-    await dris.deleteSound(s.file);
+    safeDelete(s.file, s);
     save(); dlg.close(); syncHotkeys();
   });
 
@@ -626,6 +627,23 @@ function initSettings() {
 /* =========================== right-click menu, rebind, replace audio =========================== */
 const ctxMenu = $('#ctx');
 function closeMenu() { ctxMenu.classList.add('hidden'); }
+function showMenu(e, items) {
+  e.preventDefault(); e.stopPropagation();
+  ctxMenu.innerHTML = '';
+  for (const it of items) {
+    if (!it) { ctxMenu.appendChild(document.createElement('hr')); continue; }
+    const b = document.createElement('button');
+    b.className = it[3] || '';
+    const label = document.createElement('span'); label.textContent = it[0]; b.appendChild(label);
+    if (it[1]) { const sm = document.createElement('small'); sm.textContent = it[1]; b.appendChild(sm); }
+    b.addEventListener('click', () => { closeMenu(); it[2](); });
+    ctxMenu.appendChild(b);
+  }
+  ctxMenu.classList.remove('hidden');
+  const r = ctxMenu.getBoundingClientRect();
+  ctxMenu.style.left = Math.max(6, Math.min(e.clientX, innerWidth - r.width - 6)) + 'px';
+  ctxMenu.style.top = Math.max(6, Math.min(e.clientY, innerHeight - r.height - 6)) + 'px';
+}
 function showSoundMenu(e, s) {
   e.preventDefault(); e.stopPropagation();
   const items = [
@@ -677,7 +695,7 @@ async function replaceAudio(s) {
     buffers.delete(s.id);
     const buf = await getBuffer(s);
     s.start = 0; s.end = buf.duration;
-    dris.deleteSound(oldFile);
+    safeDelete(oldFile, null);
     save(); render();
     setStatus('Replaced the audio on “' + s.name + '”. Name, key and color stayed the same.');
   } catch (err) {
@@ -692,7 +710,7 @@ async function deleteSoundWithConfirm(s) {
   engine.stopSound(s.id);
   state.sounds = state.sounds.filter((x) => x.id !== s.id);
   buffers.delete(s.id);
-  await dris.deleteSound(s.file);
+  safeDelete(s.file, s);
   save(); syncHotkeys();
 }
 
@@ -720,6 +738,62 @@ function rebindSound(s) {
   };
   window.addEventListener('keydown', onKey, true);
   dlg.addEventListener('close', finish);
+}
+
+/* =========================== presets =========================== */
+function askName(title, value) {
+  const dlg = $('#nameDlg'), inp = $('#nameInp');
+  $('#nameTitle').textContent = title; inp.value = value || '';
+  $('#nameCancel').onclick = () => dlg.close();
+  dlg.showModal(); inp.select();
+  return new Promise((res) => {
+    const done = (v) => { dlg.removeEventListener('close', onClose); $('#nameForm').onsubmit = null; if (dlg.open) dlg.close(); res(v); };
+    const onClose = () => done(null);
+    dlg.addEventListener('close', onClose);
+    $('#nameForm').onsubmit = (e) => { e.preventDefault(); done(inp.value.trim() || null); };
+  });
+}
+function activePreset() { return state.presets.find((p) => p.id === state.active); }
+function safeDelete(file, except) {
+  const used = state.presets.some((p) => (p.id === state.active ? state.sounds : p.sounds).some((x) => x !== except && x.file === file));
+  if (!used) dris.deleteSound(file);
+}
+function renderPresets() {
+  const sel = $('#presetSel');
+  sel.innerHTML = '';
+  state.presets.forEach((p) => sel.add(new Option(p.name + '  (' + p.sounds.length + ')', p.id)));
+  sel.value = state.active;
+}
+function switchPreset(id) {
+  if (pauser.paused) unpauseSync();
+  engine.stopAll();
+  const cur = activePreset(); if (cur) cur.sounds = state.sounds;
+  state.active = id;
+  state.sounds = activePreset().sounds;
+  save(); render(); renderPresets(); syncHotkeys();
+  setStatus('Preset “' + activePreset().name + '” loaded with its own keys.');
+}
+function addPreset(p) { state.presets.push(p); switchPreset(p.id); }
+function presetMenu(e) {
+  const cur = activePreset();
+  showMenu(e, [
+    ['New empty preset', '', async () => { const n = await askName('New preset', 'New preset'); if (n) addPreset({ id: uid(), name: n.trim() || 'New preset', sounds: [] }); }],
+    ['Duplicate preset', '', () => addPreset({ id: uid(), name: cur.name + ' copy', sounds: state.sounds.map((s) => ({ ...s, id: uid() })) })],
+    ['Rename…', '', async () => { const n = await askName('Rename preset', cur.name); if (n && n.trim()) { cur.name = n.trim(); save(); renderPresets(); } }],
+    null,
+    ['Export preset…', '', async () => { cur.sounds = state.sounds; const ok = await dris.exportPreset(cur); if (ok) setStatus('Exported “' + cur.name + '”.'); }],
+    ['Import preset…', '', async () => { const p = await dris.importPreset(); if (p) addPreset(p); }],
+    null,
+    ['Delete preset', '', () => {
+      if (state.presets.length < 2) return setStatus('You need at least one preset.');
+      if (!confirm('Delete preset “' + cur.name + '”? Sounds used only by it are removed.')) return;
+      const gone = state.sounds;
+      state.presets = state.presets.filter((p) => p !== cur);
+      state.active = state.presets[0].id; state.sounds = activePreset().sounds;
+      gone.forEach((s) => safeDelete(s.file, null));
+      switchPreset(state.active);
+    }, 'danger'],
+  ]);
 }
 
 /* =========================== wiring =========================== */
@@ -762,11 +836,16 @@ function initTopbar() {
 async function init() {
   const lib = await dris.loadLibrary();
   if (lib) {
-    state.sounds = lib.sounds || [];
+    state.presets = lib.presets || [{ id: uid(), name: 'Main', sounds: lib.sounds || [] }];
+    state.active = state.presets.some((p) => p.id === lib.active) ? lib.active : state.presets[0].id;
+    state.sounds = activePreset().sounds;
     state.settings = { ...DEFAULTS, ...(lib.settings || {}) };
   }
   $('#master').value = state.settings.master; $('#masterVal').textContent = state.settings.master + '%';
   initTopbar();
+  renderPresets();
+  $('#presetSel').addEventListener('change', (e) => switchPreset(e.target.value));
+  $('#presetMore').addEventListener('click', presetMenu);
   initSettings();
   await engine.applyDevices();
   render();

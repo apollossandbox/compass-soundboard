@@ -16,6 +16,7 @@
 
 <header class="topbar">
   <div class="search"><input id="search" type="search" placeholder="Search sounds…" autocomplete="off"></div>
+  <div class="preset"><select id="presetSel" title="Preset: its own buttons and keys"></select><button class="btn ghost sm" id="presetMore" title="New, duplicate, rename, export, import">Presets ▾</button></div>
   <div class="tabs" id="tabs">
     <button data-tab="all" class="active">All</button>
     <button data-tab="fav">★ Favorites</button>
@@ -125,6 +126,8 @@
     </div>
   </form>
 </dialog>
+
+<dialog id="nameDlg"><form class="dlg" id="nameForm"><h2 id="nameTitle"></h2><input id="nameInp" class="name" maxlength="40"><div class="actions"><span class="spacer"></span><button type="button" class="btn ghost" id="nameCancel">Cancel</button><button class="btn primary">OK</button></div></form></dialog>
 
 <div id="ctx" class="ctx hidden" role="menu"></div>
 
