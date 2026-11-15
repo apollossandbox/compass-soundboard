@@ -547,6 +547,8 @@ const editor = (() => {
 
   return {
     async open(s) {
+      if (pauser.paused) unpauseSync();
+      engine.stopAll(); // nothing else plays while you edit
       sound = s;
       draft = { ...s };
       dlg.showModal();
