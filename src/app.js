@@ -6,7 +6,7 @@ const COLORS = ['#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e'
 const MIN_SEL = 0.02;
 
 const DEFAULTS = {
-  master: 80,
+  master: 80, overlap: false,
   monOn: true, monDev: 'default', monVol: 100,
   strOn: false, strDev: 'default', strVol: 100,
   micOn: false, micDev: 'default', micVol: 100,
@@ -92,8 +92,14 @@ const engine = {
     const targets = opts.monitorOnly ? [mon] : outputs.filter((o) => o.enabled && !(o === str && mon.enabled && (state.settings.strDev || 'default') === (state.settings.monDev || 'default')));
     if (!targets.length) { setStatus('Both outputs are off. Open Audio to turn one on.'); return null; }
     if (pauser.paused) unpauseSync();
-    // sounds never overlap: starting one cuts whatever else is playing (drum hits are the one exception)
-    if (!opts.preview && !opts.layer) for (const v of [...voices.values()]) if (!v.preview && !String(v.soundId).startsWith('drum')) engine.stopVoice(v);
+    // a sound never stacks on itself: pressing it again restarts it.
+    // Overlap on = other sounds keep playing; off = starting one cuts the rest (drum hits always layer).
+    if (!opts.preview && !opts.layer) {
+      for (const v of [...voices.values()]) {
+        if (v.preview || String(v.soundId).startsWith('drum')) continue;
+        if (v.soundId === sound.id || !state.settings.overlap) engine.stopVoice(v);
+      }
+    }
 
     const start = Math.max(0, sound.start || 0);
     const end = Math.min(buffer.duration, sound.end || buffer.duration);
@@ -843,6 +849,9 @@ async function init() {
   }
   $('#master').value = state.settings.master; $('#masterVal').textContent = state.settings.master + '%';
   initTopbar();
+  const ov = $('#overlap');
+  ov.checked = !!state.settings.overlap;
+  ov.addEventListener('change', () => { state.settings.overlap = ov.checked; save(); setStatus(ov.checked ? 'Overlap on: sounds can play together.' : 'Overlap off: a new sound cuts the others.'); });
   renderPresets();
   $('#presetSel').addEventListener('change', (e) => switchPreset(e.target.value));
   $('#presetMore').addEventListener('click', presetMenu);
