@@ -849,6 +849,26 @@ async function init() {
   }
   $('#master').value = state.settings.master; $('#masterVal').textContent = state.settings.master + '%';
   initTopbar();
+  // "Play into my mic": Windows can't write into a real mic, so we play sounds + mic into a virtual cable
+  // whose other end (e.g. "CABLE Output") is what Discord/OBS/games use as the microphone.
+  const mm = $('#micMode');
+  mm.checked = !!(state.settings.strOn && state.settings.micOn);
+  mm.addEventListener('change', async () => {
+    const s = state.settings;
+    if (!mm.checked) { s.strOn = false; s.micOn = false; save(); await engine.applyDevices(); return setStatus('Mic mode off.'); }
+    try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()); } catch {}
+    const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+    const cable = outs.find((d) => /CABLE Input|VB-Audio|Voicemeeter Input|Virtual Audio Device|Virtual Cable/i.test(d.label));
+    if (!cable) {
+      mm.checked = false;
+      setStatus('No virtual cable found. Install the free VB-Cable (vb-audio.com/Cable), restart, then tick this again.');
+      window.open('https://vb-audio.com/Cable/');
+      return;
+    }
+    s.strDev = cable.deviceId; s.strOn = true; s.micOn = true;
+    save(); await engine.applyDevices();
+    setStatus('Mic mode on via “' + cable.label + '”. In Discord/OBS/your game, set the microphone to the matching “CABLE Output”.');
+  });
   const ov = $('#overlap');
   ov.checked = !!state.settings.overlap;
   ov.addEventListener('change', () => { state.settings.overlap = ov.checked; save(); setStatus(ov.checked ? 'Overlap on: sounds can play together.' : 'Overlap off: a new sound cuts the others.'); });
