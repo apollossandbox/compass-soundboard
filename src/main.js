@@ -151,6 +151,15 @@ ipcMain.handle('sounds:read', (_e, file) => {
   return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
 });
 
+ipcMain.handle('sounds:copy', (_e, file) => {
+  try {
+    const id = crypto.randomUUID();
+    const nf = id + path.extname(file);
+    fs.copyFileSync(path.join(soundsDir(), path.basename(file)), path.join(soundsDir(), nf));
+    return { id, file: nf };
+  } catch { return null; }
+});
+
 ipcMain.handle('sounds:delete', (_e, file) => {
   try {
     fs.unlinkSync(path.join(soundsDir(), path.basename(file)));

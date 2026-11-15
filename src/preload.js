@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('dris', {
   pickOne: () => ipcRenderer.invoke('sounds:pickOne'),
   importPaths: (paths) => ipcRenderer.invoke('sounds:importPaths', paths),
   readSound: (file) => ipcRenderer.invoke('sounds:read', file),
+  copySound: (file) => ipcRenderer.invoke('sounds:copy', file),
   deleteSound: (file) => ipcRenderer.invoke('sounds:delete', file),
   openSoundsFolder: () => ipcRenderer.invoke('sounds:openFolder'),
   setHotkeys: (list) => ipcRenderer.invoke('hotkeys:set', list),

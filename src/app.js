@@ -89,7 +89,7 @@ const engine = {
   },
   play(sound, buffer, opts = {}) {
     const s = state.settings;
-    const targets = opts.monitorOnly ? [mon] : outputs.filter((o) => o.enabled);
+    const targets = opts.monitorOnly ? [mon] : outputs.filter((o) => o.enabled && !(o === str && mon.enabled && (state.settings.strDev || 'default') === (state.settings.monDev || 'default')));
     if (!targets.length) { setStatus('Both outputs are off. Open ⚙ Audio to turn one on.'); return null; }
     if (pauser.paused) unpauseSync();
     // sounds never overlap: starting one cuts whatever else is playing (drum hits are the one exception)
@@ -260,10 +260,6 @@ function render() {
     const keyBad = s.hotkey && state.failedKeys.has(s.id);
     el.innerHTML = `
       ${s.loop ? '<span class="loopbadge" title="Loops">LOOP</span>' : ''}
-      <div class="tools">
-        <button class="fav" title="Favorite">${s.fav ? '★' : '☆'}</button>
-        <button class="edit" title="Trim & edit">✎</button>
-      </div>
       <div class="pname"></div>
       <div class="meta"><span class="key"></span></div>
       <div class="prog"></div>`;
@@ -274,8 +270,6 @@ function render() {
       if (keyBad) { key.style.textDecoration = 'line-through'; key.title = 'Another app is using this hotkey'; }
     } else key.remove();
     el.addEventListener('click', (e) => { if (!e.target.closest('.tools')) trigger(s, { stop: e.shiftKey }); });
-    el.querySelector('.edit').addEventListener('click', () => editor.open(s));
-    el.querySelector('.fav').addEventListener('click', () => { s.fav = !s.fav; save(); render(); });
     el.addEventListener('contextmenu', (e) => showSoundMenu(e, s));
     grid.appendChild(el);
     padEls.set(s.id, el);
@@ -643,6 +637,7 @@ function showSoundMenu(e, s) {
     ['Rebind key…', s.hotkey ? s.hotkey.replace('num', 'Num') : 'none', () => rebindSound(s)],
     ...(s.hotkey ? [['Clear key', '', () => { s.hotkey = ''; save(); syncHotkeys(); setStatus('Cleared the key for “' + s.name + '”.'); }]] : []),
     ['Replace audio…', '', () => replaceAudio(s)],
+    ['Duplicate', '', () => duplicateSound(s)],
     [s.fav ? 'Remove from favorites' : 'Add to favorites', '', () => { s.fav = !s.fav; save(); render(); }],
     null,
     ['Delete', '', () => deleteSoundWithConfirm(s), 'danger'],
@@ -665,6 +660,15 @@ function showSoundMenu(e, s) {
 window.addEventListener('pointerdown', (e) => { if (!e.target.closest('#ctx')) closeMenu(); }, true);
 window.addEventListener('blur', closeMenu);
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); }, true);
+
+async function duplicateSound(s) {
+  const copy = await dris.copySound(s.file);
+  if (!copy) return setStatus('Could not duplicate that sound.');
+  const dup = { ...s, id: copy.id, file: copy.file, name: s.name + ' copy', hotkey: '' };
+  state.sounds.splice(state.sounds.indexOf(s) + 1, 0, dup);
+  if (buffers.has(s.id)) buffers.set(dup.id, buffers.get(s.id));
+  save(); render(); setStatus('Duplicated “' + s.name + '”.');
+}
 
 async function replaceAudio(s) {
   const a = await dris.pickOne();
